@@ -1,0 +1,111 @@
+#!/bin/sh
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+
+# Uncomment the below to add a Signed-off-by line to the message.
+# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+# hook is more suited to it.
+#
+# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
+
+# This example catches duplicate Signed-off-by lines.
+
+#开始 日志拦截
+TAG="commit-msg log----------------->"
+
+#打印success日志函数
+printS(){
+	info=$TAG$*
+    echo -e "\033[0;32m $info \033[0m"
+}
+
+#打印fail日志函数
+printE(){
+   info=$TAG$*
+   echo -e "\033[0;31m $info \033[0m"
+}
+
+fileName=$1
+#message 获取提交日志
+message=$(<$fileName)
+if [ -z $message ]
+#message 为空
+  then
+  printE "submit message info is null"
+  exit 1
+fi
+
+
+#例子,对下面的字符串模板解析
+#[update|add|change|fix]xxx
+printS $message
+#日志最大长度
+maxLen=30
+#日志最小长度
+minLen=4
+sI=-1
+eI=-1
+#提交日志模板样式
+logFormat="log format--->\"[update|add|change|fix]xxxxxxxx\""
+
+#判断[]起始结束位置
+sI=$(awk -v a="$message" -v b="[" 'BEGIN{print index(a,b)}')
+eI=$(awk -v a="$message" -v b="]" 'BEGIN{print index(a,b)}')
+#sI=`expr index "$message" [`
+#eI=`expr index "$message" ]`
+len=${#message}
+eeI=`expr $eI-2`
+
+#printS "sI=$sI,eI=$eI"
+
+#判断[]开始
+if [[ $sI -eq 1 && $eeI -ge $sI ]]
+ then
+    action=${message:$sI:$eeI}
+    log=${message:$eI}
+	logLen=${#log}
+	#printS "action=$action,log=$log,logLen=$logLen"
+	#提交action判断
+	if [[ $action = "update" || $action = "add" || $action = "change" || $action = "fix" ]]
+		then
+		subLog=${log:0:1}
+		#printS "log=$log,subLog=$subLog"
+		#提交的本次记录内容
+		if [ -z $log ]
+			then
+			printE "log is empty"
+			exit 1
+		elif [ $logLen -lt $minLen ]
+		    #提交的本次记录内容太少
+            then
+            printE "log is min $minLen"
+            exit 1
+		elif [ -z $subLog ]
+		    #提交的本次记录内容与】之间有空格,[update] XXXX
+			then
+			printE $logFormat
+			exit 1
+		elif [ $logLen -gt $maxLen ]
+		    #提交的本次记录内容太多
+			then
+			printE "log is max $maxLen"
+			exit 1
+		else
+			printS "check log success"
+		fi
+	else
+		printE $logFormat
+		exit 1
+	fi
+ else
+	printE $logFormat
+	exit 1
+fi
+#结束
